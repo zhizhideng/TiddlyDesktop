@@ -6,7 +6,7 @@
 var gui = require("nw.gui"),
 	fs = require("fs"),
 	spawn = require("child_process").spawn,
-	config = require("../config.json");
+	config = require("./config.json");
 
 // Information about each wiki we're tracking. Each entry is a hashmap with these fields:
 // url: full file:// URI of the wiki
@@ -235,6 +235,25 @@ function trapDevTools(window,document) {
 	});
 }
 
+function findExternalTool(externalLink) {
+	var href = externalLink.href; 
+	var externalTool = null;
+	var p = href.lastIndexOf('@');
+	if (p > -1) {
+		var toolKey = href.substr(p+1);
+		if (config && config.external_tools && config.external_tools[toolKey] && config.external_tools[toolKey].path) {
+			href = href.substr(0,p);
+			if (href.substr(0,7) == "file://") {
+				href = href.substr(href[8] == "/" ? 9 : 8);
+			}
+			return {path: config.external_tools[toolKey].path, args: config.external_tools[toolKey].args, href: href}
+		}
+	}
+	if (href.toLowerCase().substr(0,4) == "http" && config && config.browser && config.browser.default && config.browser.default.path) {
+		return config.browser.default
+	}
+}
+
 // Helper to trap wikilinks within a window
 function trapLinks(doc) {
 	doc.addEventListener("click",function(event) {
@@ -251,8 +270,11 @@ function trapLinks(doc) {
 		var externalLink = findParentWithClass(event.target,"tw-tiddlylink-external externalLink");
 		if(externalLink) {
 			var href = externalLink.href; 
-			if (href.toLowerCase().substr(0,4) == "http" && config && config.browser && config.browser.default && config.browser.default.path) {
-				var childProcess = spawn(config.browser.default.path, [href], {
+			var externalTool = findExternalTool(externalLink);
+			console.log("external tool: %j", externalTool)
+			console.log("href: %s", href)
+			if (externalTool != null) {
+				var childProcess = spawn(externalTool.path, [externalTool.href || href], {
 					detached: true
 				});
 				childProcess.unref();
@@ -298,7 +320,7 @@ function renderWikiList(doc) {
 			toolbar = doc.createElement("div");
 		link.className = "tw-interwiki-link";
 		link.href = wikiInfo.url;
-		img.src = wikiInfo.img;
+		img.src = wikiInfo.img || "";
 		info.className = "td-info";
 		title.appendChild(doc.createTextNode(wikiInfo.title));
 		title.className = "td-title";
