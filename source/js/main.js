@@ -4,7 +4,9 @@
 "use strict";
 
 var gui = require("nw.gui"),
-	fs = require("fs");
+	fs = require("fs"),
+	spawn = require("child_process").spawn,
+	config = require("../config.json");
 
 // Information about each wiki we're tracking. Each entry is a hashmap with these fields:
 // url: full file:// URI of the wiki
@@ -248,7 +250,15 @@ function trapLinks(doc) {
 		// "tw-tiddlylink-external" is for TW5, "externallink" for TWC
 		var externalLink = findParentWithClass(event.target,"tw-tiddlylink-external externalLink");
 		if(externalLink) {
-			gui.Shell.openExternal(externalLink.href);
+			var href = externalLink.href; 
+			if (href.toLowerCase().substr(0,4) == "http" && config && config.browser && config.browser.default && config.browser.default.path) {
+				var childProcess = spawn(config.browser.default.path, [href], {
+					detached: true
+				});
+				childProcess.unref();
+			} else {
+				gui.Shell.openExternal(href);
+			}
 			event.preventDefault();
 			event.stopPropagation();
 			return false;
